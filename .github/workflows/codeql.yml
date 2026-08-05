@@ -1,0 +1,77 @@
+name: "CodeQL Advanced"
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Full commit SHA to analyze"
+        required: true
+        type: string
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
+    permissions:
+      # required for all workflows
+      security-events: write
+
+      # required to fetch internal or private CodeQL packs
+      packages: read
+
+      # only required for workflows in private repositories
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+        - language: java-kotlin
+          build-mode: none
+          
+    steps:
+    - name: Checkout selected commit
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.target_sha }}
+
+    - name: Verify selected commit
+      shell: bash
+      run: |
+        echo "Requested SHA: ${{ inputs.target_sha }}"
+        echo "Checked-out SHA: $(git rev-parse HEAD)"
+
+        if [ "$(git rev-parse HEAD)" != "${{ inputs.target_sha }}" ]; then
+          echo "The checked-out commit does not match the requested commit."
+          exit 1
+        fi
+
+    - name: Show Java version
+      shell: bash
+      run: |
+        java -version
+        echo "JAVA_HOME=$JAVA_HOME"
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4.37.3
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+        tools: https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.20.1/codeql-bundle-linux64.tar.zst
+
+    - name: Run manual build steps
+      if: matrix.build-mode == 'manual'
+      shell: bash
+      run: |
+        echo 'If you are using a "manual" build mode for one or more of the' \
+          'languages you are analyzing, replace this with the commands to build' \
+          'your code, for example:'
+        echo '  make bootstrap'
+        echo '  make release'
+        exit 1
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4.37.3
+      with:
+        category: "/language:${{matrix.language}}"
